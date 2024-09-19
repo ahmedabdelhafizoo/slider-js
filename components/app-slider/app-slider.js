@@ -1,7 +1,11 @@
 import styles from "./app-slider.scss?inline";
 import htmlTemplate from "./app-slider.html?raw";
 
-// TODO: Handle touch and mouse events 
+/**
+ * TODO:
+ * 1. Handle touch and mouse events 
+ * 2. handle slides loop based on slides per view
+ */
 class AppSLider extends HTMLElement {
     constructor() {
         super();
@@ -11,16 +15,18 @@ class AppSLider extends HTMLElement {
         this.slidesPerView = parseInt(this.getAttribute("slides-per-view")) || 1;
         this.autoPlay = this.getAttribute("autoplay") === "true";
         this.autoPlaySpeed = parseInt(this.getAttribute("autoplay-speed")) || 3000;
+        this.loop = this.getAttribute("loop") === "true";
         this.autoPlayTimer;
         this.activeIndex = 0;
         this.sliderContainerWidth = 0;
         this.slideWidth = 0;
         this.sliderContainer;
-        this.slides
+        this.slides;
         this.slidesCount = 0;
         this.bulletsContainer
-        this.prevButton
-        this.nextButton
+        this.prevButton;
+        this.nextButton;
+        this.navigationTimer;
     }
 
     /**
@@ -61,10 +67,10 @@ class AppSLider extends HTMLElement {
      * Set the active bullet
      * @returns {void}
      */
-    setActiveBullet() {
+    setActiveBullet(targetIndex = this.activeIndex) {
         const bullets = this.shadowRoot.querySelectorAll(".slider__bullets .slider__bullets__item");
         bullets.forEach((bullet, index) => {
-            bullet.classList.toggle("active", index === this.activeIndex);
+            bullet.classList.toggle("active", index === targetIndex);
         });
     }
 
@@ -74,10 +80,40 @@ class AppSLider extends HTMLElement {
      */
     setActiveSlide() {
         // Move the slider container to the correct position based on the active index and slide width 
-        this.sliderContainer.style.transform = `translateX(-${this.activeIndex * (this.slideWidth * this.slidesPerView)}px)`;
+        this.sliderContainer.style.transform = `translateX(${this.activeIndex < 0 ? '' : '-'}${Math.abs(this.activeIndex) * (this.slideWidth * this.slidesPerView)}px)`;
 
         this.setActiveBullet()
         this.initAutoplay();
+    }
+
+    /**
+     * Handle the next loop
+     * @returns {void}
+     */
+    handleNextLoop() {
+        // default behavior
+        if (!this.loop) {
+            this.activeIndex = 0;
+            this.setActiveSlide();
+            return;
+        };
+
+        // Move to the cloned first slide and add it to the end
+        this.activeIndex += 1;
+        const firstSLideCopy = this.slides[0].cloneNode(true);
+        this.slides[this.slides.length - 1].after(firstSLideCopy);
+        this.setActiveSlide();
+        this.setActiveBullet(this.activeIndex % this.slidesCount);
+        if (this.navigationTimer) clearTimeout(this.navigationTimer);
+        this.navigationTimer = setTimeout(() => {
+            // goto first slide
+            this.sliderContainer.style.transition = 'none';
+            this.activeIndex = 0;
+            this.setActiveSlide();
+            firstSLideCopy.remove()
+            this.sliderContainer.offsetHeight; // Force reflow to apply transition
+            this.sliderContainer.style.transition = 'transform 0.5s ease';
+        }, 500);
     }
 
     /**
@@ -85,9 +121,47 @@ class AppSLider extends HTMLElement {
      * @returns {void}
      */
     goToNextSlide() {
-        // If we're on the last slide, go to the first slide
-        this.activeIndex = this.slidesCount > this.activeIndex + 1 ? this.activeIndex + 1 : 0;
+        if (this.activeIndex < this.slidesCount - 1) {
+            // if the current slide is not the last slide
+            this.activeIndex += 1;
+            this.setActiveSlide();
+        } else {
+            this.handleNextLoop();
+        }
+    }
+
+
+    /**
+     * Handle the prev loop
+     * @returns {void}
+     */
+    handlePrevLoop() {
+        // default behavior
+        if (!this.loop) {
+            this.activeIndex = this.slidesCount - 1;
+            this.setActiveSlide();
+            return;
+        };
+
+
+        // Move to the cloned last slide and add it to the beginning
+        this.activeIndex -= 1;
+        const lastSlideCopy = this.slides[this.slides.length - 1].cloneNode(true);
+        this.slides[0].before(lastSlideCopy);
         this.setActiveSlide();
+        this.setActiveBullet(Math.abs(this.activeIndex) % this.slidesCount);
+        this.sliderContainer.style.marginLeft = `-${this.slideWidth * this.slidesPerView}px`;
+        if (this.navigationTimer) clearTimeout(this.navigationTimer);
+        this.navigationTimer = setTimeout(() => {
+            // goto last slide
+            this.sliderContainer.style.marginLeft = '0px';
+            this.sliderContainer.style.transition = 'none';
+            this.activeIndex = this.slidesCount - 1;
+            this.setActiveSlide();
+            lastSlideCopy.remove();
+            this.sliderContainer.offsetHeight; // Force reflow to apply transition
+            this.sliderContainer.style.transition = 'transform 0.5s ease';
+        }, 500);
     }
 
     /**
@@ -95,9 +169,13 @@ class AppSLider extends HTMLElement {
      * @returns {void}
      */
     goToPrevSlide() {
-        // If we're on the first slide, go to the last slide
-        this.activeIndex = this.activeIndex > 0 ? this.activeIndex - 1 : this.slidesCount - 1;
-        this.setActiveSlide();
+        if (this.activeIndex > 0) {
+            // if the current slide is not the first slide
+            this.activeIndex -= 1;
+            this.setActiveSlide();
+        } else {
+            this.handlePrevLoop();
+        }
     }
 
     /**
@@ -189,6 +267,9 @@ class AppSLider extends HTMLElement {
         this.prevButton.removeEventListener("click", this.goToPrevSlide);
         this.nextButton.removeEventListener("click", this.goToNextSlide);
         window.removeEventListener("resize", this.updateSlideWidth.bind(this));
+
+        // clear the autoplay timer
+        this.autoplayTimer && clearInterval(this.autoplayTimer);
     }
 }
 
