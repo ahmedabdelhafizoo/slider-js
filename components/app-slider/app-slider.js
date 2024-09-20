@@ -16,6 +16,8 @@ class AppSLider extends HTMLElement {
         this.autoPlay = this.getAttribute("autoplay") === "true";
         this.autoPlaySpeed = parseInt(this.getAttribute("autoplay-speed")) || 3000;
         this.loop = this.getAttribute("loop") === "true";
+        this.navigationSpeed = parseInt(this.getAttribute("navigation-speed")) || 500;
+        this.isNavigationActive = false;
         this.autoPlayTimer;
         this.activeIndex = 0;
         this.sliderContainerWidth = 0;
@@ -87,10 +89,31 @@ class AppSLider extends HTMLElement {
     }
 
     /**
-     * Handle the next loop
+     * Set the slider transition duration based on the speed
+     * @param {number} speed - The speed of the slider in milliseconds
      * @returns {void}
      */
-    handleNextLoop() {
+    setSliderTransitionDuration(speed) {
+        this.sliderContainer.style.transitionDuration = `${speed / 1000}s`;
+    }
+
+    /**
+     * Handle the next navigation
+     * @returns {void}
+     */
+    handleNextNavigation() {
+        // if the current slide is not the last slide
+        this.activeIndex += 1;
+        this.setActiveSlide();
+        this.isNavigationActive = true
+        setTimeout(() => this.isNavigationActive = false, this.navigationSpeed)
+    }
+
+    /**
+     * Handle the next navigation loop
+     * @returns {void}
+     */
+    handleNextNavigationLoop() {
         // default behavior
         if (!this.loop) {
             this.activeIndex = 0;
@@ -98,6 +121,7 @@ class AppSLider extends HTMLElement {
             return;
         };
 
+        this.isNavigationActive = true
         // Move to the cloned first slide and add it to the end
         this.activeIndex += 1;
         const firstSLideCopy = this.slides[0].cloneNode(true);
@@ -107,13 +131,14 @@ class AppSLider extends HTMLElement {
         if (this.navigationTimer) clearTimeout(this.navigationTimer);
         this.navigationTimer = setTimeout(() => {
             // goto first slide
-            this.sliderContainer.style.transition = 'none';
+            this.setSliderTransitionDuration(0);
             this.activeIndex = 0;
             this.setActiveSlide();
             firstSLideCopy.remove()
             this.sliderContainer.offsetHeight; // Force reflow to apply transition
-            this.sliderContainer.style.transition = 'transform 0.5s ease';
-        }, 500);
+            this.setSliderTransitionDuration(this.navigationSpeed);
+            this.isNavigationActive = false
+        }, this.navigationSpeed);
     }
 
     /**
@@ -121,21 +146,28 @@ class AppSLider extends HTMLElement {
      * @returns {void}
      */
     goToNextSlide() {
-        if (this.activeIndex < this.slidesCount - 1) {
-            // if the current slide is not the last slide
-            this.activeIndex += 1;
-            this.setActiveSlide();
-        } else {
-            this.handleNextLoop();
-        }
+        if (this.isNavigationActive) return
+        this.activeIndex < this.slidesCount - 1 ? this.handleNextNavigation() : this.handleNextNavigationLoop();
+    }
+
+    /**
+     * Handle the prev navigation
+     * @returns {void}
+     */
+    handlePrevNavigation() {
+        // if the current slide is not the first slide
+        this.activeIndex -= 1;
+        this.setActiveSlide();
+        this.isNavigationActive = true
+        setTimeout(() => this.isNavigationActive = false, this.navigationSpeed)
     }
 
 
     /**
-     * Handle the prev loop
+     * Handle the prev navigation loop
      * @returns {void}
      */
-    handlePrevLoop() {
+    handlePrevNavigationLoop() {
         // default behavior
         if (!this.loop) {
             this.activeIndex = this.slidesCount - 1;
@@ -143,25 +175,26 @@ class AppSLider extends HTMLElement {
             return;
         };
 
-
+        this.isNavigationActive = true
         // Move to the cloned last slide and add it to the beginning
         this.activeIndex -= 1;
-        const lastSlideCopy = this.slides[this.slides.length - 1].cloneNode(true);
+        this.setActiveBullet(Math.abs(this.activeIndex) % this.slidesCount);
+        const lastSlideCopy = this.slides[Math.abs(this.activeIndex)].cloneNode(true);
         this.slides[0].before(lastSlideCopy);
         this.setActiveSlide();
-        this.setActiveBullet(Math.abs(this.activeIndex) % this.slidesCount);
         this.sliderContainer.style.marginLeft = `-${this.slideWidth * this.slidesPerView}px`;
         if (this.navigationTimer) clearTimeout(this.navigationTimer);
         this.navigationTimer = setTimeout(() => {
             // goto last slide
             this.sliderContainer.style.marginLeft = '0px';
-            this.sliderContainer.style.transition = 'none';
+            this.setSliderTransitionDuration(0);
             this.activeIndex = this.slidesCount - 1;
             this.setActiveSlide();
             lastSlideCopy.remove();
             this.sliderContainer.offsetHeight; // Force reflow to apply transition
-            this.sliderContainer.style.transition = 'transform 0.5s ease';
-        }, 500);
+            this.setSliderTransitionDuration(this.navigationSpeed);
+            this.isNavigationActive = false
+        }, this.navigationSpeed);
     }
 
     /**
@@ -169,13 +202,8 @@ class AppSLider extends HTMLElement {
      * @returns {void}
      */
     goToPrevSlide() {
-        if (this.activeIndex > 0) {
-            // if the current slide is not the first slide
-            this.activeIndex -= 1;
-            this.setActiveSlide();
-        } else {
-            this.handlePrevLoop();
-        }
+        if (this.isNavigationActive) return
+        this.activeIndex > 0 ? this.handlePrevNavigation() : this.handlePrevNavigationLoop();
     }
 
     /**
@@ -228,6 +256,7 @@ class AppSLider extends HTMLElement {
     initSlider() {
         // init the slider elements
         this.sliderContainer = this.shadowRoot.querySelector(".slider__slides");
+        this.sliderContainer.style.transitionDuration = `${this.navigationSpeed / 1000}s`;
         this.slides = this.sliderContainer.querySelector("& > slot").assignedElements();
         this.prevButton = this.shadowRoot.querySelector("slot[name=prev-button]");
         this.nextButton = this.shadowRoot.querySelector("slot[name=next-button]");

@@ -28,6 +28,7 @@ To use the slider component, you can add it to your HTML as follows:
 - **`autoplay-speed`**: Controls the speed of autoplay in milliseconds (default: `3000`).
 - **`slides-per-view`**: Number of slides visible at a time (default: `1`).
 - **`loop`**: Enables or disables loop (default: `false`).
+- **`navigation-speed`**: Controls the speed of navigation in milliseconds (default: `500`).
 
 ### Slots
 
